@@ -20,6 +20,7 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 
 
 Route::apiResource('users', 'UserController');
+Route::post('uploadimages', 'UserController@uploadimages');
 
 Route::group([
     'prefix' => 'auth'

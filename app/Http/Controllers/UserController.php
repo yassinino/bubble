@@ -149,4 +149,8 @@ class UserController extends Controller
     {
         //
     }
+
+    public function uploadimages(Request $request){
+        dd($request->all());
+    }
 }
