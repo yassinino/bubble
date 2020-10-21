@@ -6,7 +6,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Passport\HasApiTokens;
 use Illuminate\Notifications\Notifiable;
-
+use Storage;
 class User extends Authenticatable
 {
     protected $table = 'bubble_users';
@@ -43,6 +43,19 @@ class User extends Authenticatable
     public function score()
     {
         return $this->hasMany(Score::class,'user_id');
+    }
+
+    public function getProfileAttribute($value)
+    {
+        if($value){
+            return Storage::url($value);
+        }
+        return "";
+    }
+
+    public function user_network()
+    {
+        return $this->hasMany(UserNetwork::class,'user_id');
     }
 
     public function totalScore()

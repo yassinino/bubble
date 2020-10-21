@@ -12,4 +12,14 @@ class UserNetwork extends Model
         'user_id', 'network_id', 'access_keys'
     ];
 
+     public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+     public function network()
+    {
+        return $this->belongsTo(Network::class, 'network_id');
+    }
+
 }

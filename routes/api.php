@@ -18,9 +18,17 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
     return $request->user();
 });
 
+Route::group([
+      'middleware' => 'auth:api'
+    ], function() {
+        Route::get('logout', 'UserController@logout');
+        Route::get('user', 'UserController@user');
+        Route::get('linked', 'UserController@linked');
+        Route::post('links', 'UserController@links');
 
+    });
 Route::apiResource('users', 'UserController');
-Route::post('uploadimages', 'UserController@uploadimages');
+Route::post('uploadimage', 'UserController@uploadimage');
 
 Route::group([
     'prefix' => 'auth'
