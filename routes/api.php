@@ -25,7 +25,8 @@ Route::group([
         Route::get('user', 'UserController@user');
         Route::get('linked', 'UserController@linked');
         Route::post('links', 'UserController@links');
-
+        Route::get('rankings/local', 'UserController@rankingLocal');
+        Route::get('rankings/global', 'UserController@rankingGlobal');
     });
 Route::apiResource('users', 'UserController');
 Route::post('uploadimage', 'UserController@uploadimage');

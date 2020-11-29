@@ -12,6 +12,7 @@ use DB;
 use Str;
 use Storage;
 use Carbon\Carbon;
+use Geocoder;
 class UserController extends Controller
 {
     /**
@@ -30,9 +31,15 @@ class UserController extends Controller
             $user->score_fb = isset($fb) ? $fb->score : 0;
             $user->score_li = isset($in) ? $li->score : 0;
             $user->score_tw = isset($tw) ? $tw->score : 0;
-            $user->total_score = isset($total) ? $total->score : 0;
+            $user->total_score = !empty($total) ? $total->score : 0;
+            $user->percentScore = ceil(($user->total_score * 100) / 1000);
             return $user;
         });
+
+        $sorted = $users->sortByDesc('total_score');
+
+        $users = $sorted->values()->all();
+        return Response::json($users);
         return Response::json($users);
     }
 
@@ -43,6 +50,7 @@ class UserController extends Controller
      */
     public function user(Request $request)
     {
+
         $us = $request->user();
         $user = User::with(['totalScore', 'user_network.network'])->where('uuid', $us->uuid)->first();
         $user->totalScore = $user->totalScore['score'];
@@ -51,7 +59,7 @@ class UserController extends Controller
             $net->score = Score::where('user_id', $net->user_id)->where('network_id', $net->network_id)->first();
             return $net;
         });
-        return response()->json($user);
+        return Response::json($user);
     }
 
     public function linked(Request $request){
@@ -70,6 +78,7 @@ class UserController extends Controller
            UserNetwork::create([
             'user_id' => $user->id,
             'network_id' => $request->type,
+            'userId' => $request->user['id'],
             'access_keys' => "{'userID' : ".$request->user['id'].",'accessKey' : ".$request->user['accessToken']."}",
             ]); 
        }else{
@@ -79,6 +88,56 @@ class UserController extends Controller
         
     }
 
+    public function rankingLocal(Request $request){
+        $us = $request->user();
+        $user = User::find($us->id);
+        $latitude = $user->latitude;
+        $longtitude = $user->longtitude;
+        $distance = 500;
+        $users = User::with(['user_network'])
+        ->whereRaw(DB::raw("latitude !='' and longtitude !=''
+                                and ( 3959 * acos( cos( radians('$latitude') ) * cos( radians( latitude ) )
+                                * cos( radians( longtitude ) - radians('$longtitude') ) + sin( radians('$latitude') )
+                                * sin( radians( latitude ) ) ) ) < '$distance' "))->get();
+        $users = $users->map(function($user){
+            $fb = DB::table('bubble_users_networks_scores')->where('user_id', $user->id)->where('network_id', 1)->first();
+            $li = DB::table('bubble_users_networks_scores')->where('user_id', $user->id)->where('network_id', 2)->first();
+            $tw = DB::table('bubble_users_networks_scores')->where('user_id', $user->id)->where('network_id', 3)->first();
+            $total = DB::table('bubble_users_total_scores')->where('user_id', $user->id)->first();
+            $user->score_fb = isset($fb) ? $fb->score : 0;
+            $user->score_li = isset($in) ? $li->score : 0;
+            $user->score_tw = isset($tw) ? $tw->score : 0;
+            $user->total_score = !empty($total) ? $total->score : 0;
+            $user->percentScore = ceil(($user->total_score * 100) / 1000);
+            return $user;
+        });
+        $sorted = $users->sortByDesc('total_score');
+
+        $users = $sorted->values()->all();
+        return Response::json($users);
+    }
+
+
+    public function rankingGlobal(){
+        $users = User::with(['user_network'])->get()->take(50);
+        $users = $users->map(function($user){
+            $fb = DB::table('bubble_users_networks_scores')->where('user_id', $user->id)->where('network_id', 1)->first();
+            $li = DB::table('bubble_users_networks_scores')->where('user_id', $user->id)->where('network_id', 2)->first();
+            $tw = DB::table('bubble_users_networks_scores')->where('user_id', $user->id)->where('network_id', 3)->first();
+            $total = DB::table('bubble_users_total_scores')->where('user_id', $user->id)->first();
+            $user->score_fb = isset($fb) ? $fb->score : 0;
+            $user->score_li = isset($in) ? $li->score : 0;
+            $user->score_tw = isset($tw) ? $tw->score : 0;
+            $user->total_score = !empty($total) ? $total->score : 0;
+            $user->percentScore = ceil(($user->total_score * 100) / 1000);
+            return $user;
+        });
+        $sorted = $users->sortByDesc('total_score');
+
+        $users = $sorted->values()->all();
+        return Response::json($users);
+    }
+
     /**
      * Store a newly created resource in storage.
      *
@@ -86,7 +145,7 @@ class UserController extends Controller
      * @return \Illuminate\Http\Response
      */
     public function store(Request $request)
-    {        
+    {
         $authUser = $this->findOrCreateUser($request);
         $user = User::where('email', $authUser->email)->first();
 
@@ -108,18 +167,24 @@ class UserController extends Controller
 
     public function findOrCreateUser($user)
     {
-        $authUser = User::where('email', $user->email)->first();
+        $authUser = User::with('user_network')
+                    ->whereHas('user_network', function ($query) use($user) {
+                        return $query->where('userId', '=', $user->id);
+                    })
+                    ->orWhere('email', $user->email)->first();
         if ($authUser) {
-            return $user;
+            return $authUser;
         }
+
 
         $user_insert = User::create([
             'name' => $user->name,
             'email' => $user->email,
             'profile' =>  $user->picture,
             'uuid' => Uuid::generate(),
-            'location' => 'agadir',
-            'locality' => 'agadir',
+            'latitude' => isset($user->latitude) ? $user->latitude : '-33.91722',
+            'longtitude' => isset($user->longtitude) ? $user->longtitude : '151.23064',
+            'locality' => 'UK',
 
         ]);
 
@@ -128,7 +193,8 @@ class UserController extends Controller
             'user_id' => $user_insert->id,
             'network_id' => $user->type_network,
             'access_keys' => "{'userID' : ".$user->id.",'accessKey' : ".$user->accessToken."}",
-            ]);
+            'userId' => $user->id,
+        ]);
 
         
         return $user_insert;
@@ -158,6 +224,7 @@ class UserController extends Controller
      */
     public function edit($id)
     {
+
     }
 
     /**
@@ -193,7 +260,6 @@ class UserController extends Controller
 
     public function uploadimage(Request $request){
 
-
          $image_64 = $request->file; //your base64 encoded data
          $uuid = $request->uuid;
 
@@ -201,11 +267,11 @@ class UserController extends Controller
         $pic = Storage::disk('public')->put('pictures', $image_64);
 
         $user = User::where('uuid', $uuid);
+        $photo = env('IMAGE_PATH', 'https://abeille.app/bubble/public/').Storage::url($pic);
         $user->update([
-            'profile' => $pic
+            'profile' => $photo
         ]);
 
-         return Response::json(Storage::url($pic));
-
+         return Response::json($photo);
     }
 }

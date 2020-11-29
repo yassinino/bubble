@@ -9,7 +9,7 @@ class UserNetwork extends Model
      protected $table = 'bubble_users_networks';
 
      protected $fillable = [
-        'user_id', 'network_id', 'access_keys'
+        'user_id', 'network_id', 'access_keys', 'userId'
     ];
 
      public function user()

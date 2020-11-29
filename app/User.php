@@ -19,7 +19,7 @@ class User extends Authenticatable
      * @var array
      */
     protected $fillable = [
-        'uuid', 'name', 'email', 'password','profile','about','location','locality',
+        'uuid', 'name', 'email', 'password','profile','about','longtitude','latitude','locality'
     ];
 
     /**
@@ -45,13 +45,6 @@ class User extends Authenticatable
         return $this->hasMany(Score::class,'user_id');
     }
 
-    public function getProfileAttribute($value)
-    {
-        if($value){
-            return Storage::url($value);
-        }
-        return "";
-    }
 
     public function user_network()
     {
